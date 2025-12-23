@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { generateDailySummaries } from "../utils/dataGenerator";
 import { fetchDailySummaries } from "../services/api";
 import {
   format,
@@ -20,19 +19,25 @@ import {
 export function CalendarView() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [apiSummaries, setApiSummaries] = useState<any[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const summaries = useMemo(() => {
-    // Use API data if available, otherwise fall back to simulated data
-    return apiSummaries || generateDailySummaries(90);
+    return apiSummaries || [];
   }, [apiSummaries]);
 
   useEffect(() => {
     const loadSummaries = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const data = await fetchDailySummaries("GCI001", 90);
         setApiSummaries(data);
-      } catch (error) {
-        console.warn("API unavailable, using simulated summaries:", error);
-        setApiSummaries(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load summaries");
+        console.error("Failed to fetch daily summaries:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -68,6 +73,35 @@ export function CalendarView() {
   // Calculate starting day of week (0 = Sunday)
   const firstDayOfWeek = monthStart.getDay();
   const calendarDays = [...Array(firstDayOfWeek).fill(null), ...daysInMonth];
+
+  if (error) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="error-message">
+          <p>Error loading calendar data: {error}</p>
+          <p>Please ensure the backend API is running at {import.meta.env.VITE_API_URL}</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="loading-message">Loading calendar...</div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

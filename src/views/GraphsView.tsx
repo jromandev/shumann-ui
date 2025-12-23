@@ -14,16 +14,20 @@ import {
 } from "recharts";
 import { Calendar, TrendingUp } from "lucide-react";
 import type { TimeRange } from "../types";
-import { generateHistoricalData } from "../utils/dataGenerator";
 import { fetchPowerData } from "../services/api";
 import { format, subDays, subHours } from "date-fns";
 
 export function GraphsView() {
   const [timeRange, setTimeRange] = useState<TimeRange>("24h");
   const [apiData, setApiData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
+      setError(null);
       const now = new Date();
       let startDate: Date;
       let interval: string;
@@ -54,61 +58,41 @@ export function GraphsView() {
           now,
           interval
         );
-        setApiData(response.data);
-      } catch (error) {
-        console.warn("API unavailable, using simulated data:", error);
-        setApiData(null);
+        setApiData(response.data || response);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load data");
+        console.error("Failed to fetch power data:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     loadData();
   }, [timeRange]);
 
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const historicalData = useMemo(() => {
-    // If we have API data, use it
-    if (apiData && apiData.length > 0) {
-      return apiData.map((d: any) => ({
-        timestamp: new Date(d.time_bucket).getTime(),
-        time: format(
-          new Date(d.time_bucket),
-          timeRange === "24h" ? "HH:mm" : "MMM dd"
-        ),
-        frequency: d.avg_frequency || 7.83,
-        amplitude: d.avg_power || d.avg_amplitude || 1.0,
-      }));
-    }
+    if (!apiData || apiData.length === 0) return [];
 
-    // Fall back to simulated data
-    const now = new Date();
-    let startDate: Date;
-    let intervalMinutes: number;
-
-    switch (timeRange) {
-      case "24h":
-        startDate = subHours(now, 24);
-        intervalMinutes = 5;
-        break;
-      case "7d":
-        startDate = subDays(now, 7);
-        intervalMinutes = 30;
-        break;
-      case "30d":
-        startDate = subDays(now, 30);
-        intervalMinutes = 120;
-        break;
-      case "90d":
-        startDate = subDays(now, 90);
-        intervalMinutes = 360;
-        break;
-    }
-
-    return generateHistoricalData(startDate, now, intervalMinutes).map((d) => ({
-      timestamp: d.timestamp.getTime(),
-      time: format(d.timestamp, timeRange === "24h" ? "HH:mm" : "MMM dd"),
-      frequency: d.frequency,
-      amplitude: d.amplitude,
+    return apiData.map((d: any) => ({
+      timestamp: new Date(d.time_bucket || d.timestamp).getTime(),
+      time: format(
+        new Date(d.time_bucket || d.timestamp),
+        timeRange === "24h" ? "HH:mm" : "MMM dd"
+      ),
+      frequency: d.avg_frequency || d.frequency || 7.83,
+      amplitude: d.avg_power || d.avg_amplitude || d.amplitude || 1.0,
     }));
-  }, [timeRange]);
+  }, [apiData, timeRange]);
 
   const timeRanges: { value: TimeRange; label: string }[] = [
     { value: "24h", label: "24 Hours" },
@@ -116,6 +100,35 @@ export function GraphsView() {
     { value: "30d", label: "30 Days" },
     { value: "90d", label: "90 Days" },
   ];
+
+  if (error) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="error-message">
+          <p>Error loading data: {error}</p>
+          <p>Please ensure the backend API is running at {import.meta.env.VITE_API_URL}</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="loading-message">Loading...</div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -166,17 +179,19 @@ export function GraphsView() {
             <XAxis
               dataKey="time"
               stroke="#ffffff60"
-              tick={{ fill: "#ffffff80", fontSize: 12 }}
+              tick={{ fill: "#ffffff80", fontSize: isMobile ? 10 : 12 }}
+              interval={isMobile ? "preserveStartEnd" : "preserveStart"}
             />
             <YAxis
               stroke="#ffffff60"
-              tick={{ fill: "#ffffff80", fontSize: 12 }}
-              label={{
+              tick={{ fill: "#ffffff80", fontSize: isMobile ? 10 : 12 }}
+              width={isMobile ? 35 : 45}
+              label={!isMobile ? {
                 value: "Amplitude",
                 angle: -90,
                 position: "insideLeft",
                 fill: "#ffffff80",
-              }}
+              } : undefined}
             />
             <Tooltip
               contentStyle={{
@@ -184,6 +199,7 @@ export function GraphsView() {
                 border: "1px solid #00D9FF40",
                 borderRadius: "8px",
                 color: "#fff",
+                fontSize: isMobile ? "0.75rem" : "0.875rem",
               }}
             />
             <Area
@@ -208,18 +224,20 @@ export function GraphsView() {
             <XAxis
               dataKey="time"
               stroke="#ffffff60"
-              tick={{ fill: "#ffffff80", fontSize: 12 }}
+              tick={{ fill: "#ffffff80", fontSize: isMobile ? 10 : 12 }}
+              interval={isMobile ? "preserveStartEnd" : "preserveStart"}
             />
             <YAxis
               stroke="#ffffff60"
-              tick={{ fill: "#ffffff80", fontSize: 12 }}
+              tick={{ fill: "#ffffff80", fontSize: isMobile ? 10 : 12 }}
+              width={isMobile ? 35 : 45}
               domain={[7, 9]}
-              label={{
+              label={!isMobile ? {
                 value: "Frequency (Hz)",
                 angle: -90,
                 position: "insideLeft",
                 fill: "#ffffff80",
-              }}
+              } : undefined}
             />
             <Tooltip
               contentStyle={{
@@ -227,9 +245,15 @@ export function GraphsView() {
                 border: "1px solid #00D9FF40",
                 borderRadius: "8px",
                 color: "#fff",
+                fontSize: isMobile ? "0.75rem" : "0.875rem",
               }}
             />
-            <Legend wrapperStyle={{ color: "#fff" }} />
+            <Legend 
+              wrapperStyle={{ 
+                color: "#fff",
+                fontSize: isMobile ? "0.75rem" : "0.875rem"
+              }} 
+            />
             <Line
               type="monotone"
               dataKey="frequency"

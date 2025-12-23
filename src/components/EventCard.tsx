@@ -13,6 +13,9 @@ const categoryIcons = {
   geomagnetic: Activity,
   seasonal: Cloud,
   ionospheric: Radio,
+  extreme: Zap, // fallback for event_type categories
+  moderate: Activity,
+  low: Activity,
 };
 
 const categoryColors = {
@@ -21,11 +24,14 @@ const categoryColors = {
   geomagnetic: "#00D9FF",
   seasonal: "#00FF88",
   ionospheric: "#8A2BE2",
+  extreme: "#FF3366",
+  moderate: "#FFD700",
+  low: "#00D9FF",
 };
 
 export function EventCard({ event }: EventCardProps) {
-  const Icon = categoryIcons[event.category];
-  const color = categoryColors[event.category];
+  const Icon = categoryIcons[event.category] || Activity; // fallback icon
+  const color = categoryColors[event.category] || "#00D9FF"; // fallback color
 
   return (
     <motion.div
@@ -58,13 +64,13 @@ export function EventCard({ event }: EventCardProps) {
         <div className="event-metric">
           <span className="metric-label">Peak Amplitude</span>
           <span className="metric-value" style={{ color }}>
-            {event.peakAmplitude.toFixed(2)}
+            {(typeof event.peakAmplitude === 'number' ? event.peakAmplitude : parseFloat(event.peakAmplitude) || 0).toFixed(2)}
           </span>
         </div>
         <div className="event-metric">
           <span className="metric-label">Frequency</span>
           <span className="metric-value">
-            {event.peakFrequency.toFixed(2)} Hz
+            {(typeof event.peakFrequency === 'number' ? event.peakFrequency : parseFloat(event.peakFrequency) || 7.83).toFixed(2)} Hz
           </span>
         </div>
         <div className="event-metric">

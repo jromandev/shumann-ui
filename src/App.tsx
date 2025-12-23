@@ -40,13 +40,6 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="header-content">
-          <h1 className="app-title">Schumann Resonance</h1>
-          <p className="app-subtitle">Earth's Electromagnetic Pulse</p>
-        </div>
-      </header>
-
       <main className="app-main">{renderView()}</main>
 
       <TabNavigation

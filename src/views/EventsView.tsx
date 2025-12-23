@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Filter, Search } from "lucide-react";
 import { EventCard } from "../components/EventCard";
 import type { EventCategory } from "../types";
-import { generateNotableEvents } from "../utils/dataGenerator";
 import { fetchEvents } from "../services/api";
 
 export function EventsView() {
@@ -11,18 +10,25 @@ export function EventsView() {
     EventCategory | "all"
   >("all");
   const [apiEvents, setApiEvents] = useState<any[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const events = useMemo(() => {
-    // Use API data if available, otherwise fall back to simulated data
-    if (apiEvents) {
-      // Transform API events to match the expected format
-      return apiEvents.map((e) => ({
-        id: e.id,
-        date: new Date(e.timestamp),
-        category: e.event_type as EventCategory,
-        peakAmplitude: e.peak_value,
-        peakFrequency: e.frequency || 7.83,
-        duration: Math.round(e.duration_seconds / 60), // convert to minutes
-        description: e.description,
+    if (!apiEvents) return [];
+    
+    // Transform API events to match the expected format
+    return apiEvents.map((e) => {
+      const timestamp = e.start_time || e.timestamp || e.date;
+      const eventDate = timestamp ? new Date(timestamp) : new Date();
+      
+      return {
+        id: e.id || Math.random().toString(),
+        date: eventDate,
+        category: (e.category || e.event_type) as EventCategory,
+        peakAmplitude: parseFloat(e.peak_intensity || e.peak_value) || 0,
+        peakFrequency: parseFloat(e.frequency) || 7.83,
+        duration: e.duration_minutes || (e.duration_seconds ? Math.round(e.duration_seconds / 60) : 0),
+        description: e.description || "No description",
         solarActivity: e.metadata?.solar_activity
           ? {
               flareClass: e.metadata.solar_activity.flare_class,
@@ -30,19 +36,22 @@ export function EventsView() {
               cmeSpeed: e.metadata.solar_activity.cme_speed,
             }
           : undefined,
-      }));
-    }
-    return generateNotableEvents(90);
+      };
+    }).filter(e => !isNaN(e.date.getTime())); // Filter out invalid dates
   }, [apiEvents]);
 
   useEffect(() => {
     const loadEvents = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const response = await fetchEvents(90);
-        setApiEvents(response.events);
-      } catch (error) {
-        console.warn("API unavailable, using simulated events:", error);
-        setApiEvents(null);
+        setApiEvents(response.events || response.data || response);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load events");
+        console.error("Failed to fetch events:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -62,6 +71,35 @@ export function EventsView() {
     { value: "seasonal", label: "Seasonal" },
     { value: "ionospheric", label: "Ionospheric" },
   ];
+
+  if (error) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="error-message">
+          <p>Error loading events: {error}</p>
+          <p>Please ensure the backend API is running at {import.meta.env.VITE_API_URL}</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="loading-message">Loading events...</div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

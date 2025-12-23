@@ -1,33 +1,47 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Activity, Radio, Zap, TrendingUp } from "lucide-react";
 import { MetricCard } from "../components/MetricCard";
 import { WaveformVisualizer } from "../components/WaveformVisualizer";
 import type { ResonanceData } from "../types";
 import { fetchCurrentData } from "../services/api";
-import { generateCurrentResonance } from "../utils/dataGenerator";
 
 export function LiveDashboard() {
-  const [currentData, setCurrentData] = useState<ResonanceData>(
-    generateCurrentResonance()
-  );
+  const [currentData, setCurrentData] = useState<ResonanceData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [waveformWidth, setWaveformWidth] = useState(600);
+  const waveformContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        setError(null);
         const response = await fetchCurrentData("GCI001");
 
         // Transform API response to ResonanceData format
-        if (response.resonances && response.resonances.length > 0) {
-          const fundamental = response.resonances.find(
-            (r: any) => r.frequency >= 7.5 && r.frequency <= 8.5
-          );
-          const harmonics = response.resonances.filter(
-            (r: any) => r.frequency > 8.5
-          );
+        // New API structure: response.power contains the main data
+        if (response.power || response.resonances) {
+          let fundamental, harmonics;
+          
+          if (response.resonances && response.resonances.length > 0) {
+            // Old format with resonances array
+            fundamental = response.resonances.find(
+              (r: any) => r.frequency >= 7.5 && r.frequency <= 8.5
+            );
+            harmonics = response.resonances.filter(
+              (r: any) => r.frequency > 8.5
+            );
+          } else if (response.power) {
+            // New format with power object
+            fundamental = {
+              frequency: parseFloat(response.power.fundamental_freq) || 7.83,
+              avg_intensity: parseFloat(response.power.fundamental_amplitude) || 1.0,
+            };
+            harmonics = []; // Harmonics not provided in new format
+          }
 
           const transformedData: ResonanceData = {
-            timestamp: new Date(response.timestamp),
+            timestamp: new Date(response.timestamp || response.power?.timestamp_utc),
             frequency: fundamental?.frequency || 7.83,
             amplitude: fundamental?.avg_intensity || 1.0,
             harmonics: {
@@ -40,9 +54,9 @@ export function LiveDashboard() {
 
           setCurrentData(transformedData);
         }
-      } catch (error) {
-        console.warn("API unavailable, using simulated data:", error);
-        // Keep using simulated data on error
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load data");
+        console.error("Failed to fetch current data:", err);
       }
     };
 
@@ -54,6 +68,50 @@ export function LiveDashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle responsive waveform sizing
+  useEffect(() => {
+    const updateWaveformSize = () => {
+      if (waveformContainerRef.current) {
+        const containerWidth = waveformContainerRef.current.clientWidth;
+        setWaveformWidth(Math.min(containerWidth - 40, 600));
+      }
+    };
+
+    updateWaveformSize();
+    window.addEventListener('resize', updateWaveformSize);
+    
+    return () => window.removeEventListener('resize', updateWaveformSize);
+  }, []);
+
+  if (error) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="error-message">
+          <p>Error loading data: {error}</p>
+          <p>Please ensure the backend API is running at {import.meta.env.VITE_API_URL}</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!currentData) {
+    return (
+      <motion.div
+        className="view-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="loading-message">Loading...</div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -67,11 +125,11 @@ export function LiveDashboard() {
         <p className="view-subtitle">Earth's Electromagnetic Heartbeat</p>
       </div>
 
-      <div className="waveform-section">
+      <div className="waveform-section" ref={waveformContainerRef}>
         <WaveformVisualizer
           frequency={currentData.frequency}
           amplitude={currentData.amplitude}
-          width={Math.min(window.innerWidth - 40, 600)}
+          width={waveformWidth}
           height={150}
         />
       </div>
