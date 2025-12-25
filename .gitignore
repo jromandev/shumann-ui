@@ -27,3 +27,12 @@ dist-ssr
 .env.local
 
 package-lock.json
+
+# iOS/Android build artifacts
+ios/App/App/Assets.xcassets/AppIcon.appiconset/*.backup.png
+android/app/build/
+android/.gradle/
+ios/App/build/
+
+# Python scripts (temporary)
+fix_icon.py

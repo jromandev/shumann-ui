@@ -151,6 +151,7 @@ export function generateNotableEvents(days: number = 30): NotableEvent[] {
 
     const category = categories[Math.floor(Math.random() * categories.length)];
     const peakAmplitude = 3 + Math.random() * 7;
+    const intensity = peakAmplitude; // intensity same as peakAmplitude
     const duration = 15 + Math.floor(Math.random() * 180); // 15-195 minutes
 
     const descriptions = eventDescriptions[category];
@@ -160,6 +161,7 @@ export function generateNotableEvents(days: number = 30): NotableEvent[] {
     events.push({
       id: `event-${i}-${eventDate.getTime()}`,
       date: eventDate,
+      intensity,
       peakAmplitude,
       peakFrequency: BASE_FREQUENCY + (Math.random() - 0.5) * 1.0,
       duration,

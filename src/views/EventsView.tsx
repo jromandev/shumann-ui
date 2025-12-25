@@ -20,12 +20,14 @@ export function EventsView() {
     return apiEvents.map((e) => {
       const timestamp = e.start_time || e.timestamp || e.date;
       const eventDate = timestamp ? new Date(timestamp) : new Date();
+      const peakIntensity = parseFloat(e.peak_intensity || e.peak_value) || 0;
       
       return {
         id: e.id || Math.random().toString(),
         date: eventDate,
         category: (e.category || e.event_type) as EventCategory,
-        peakAmplitude: parseFloat(e.peak_intensity || e.peak_value) || 0,
+        intensity: peakIntensity,
+        peakAmplitude: peakIntensity,
         peakFrequency: parseFloat(e.frequency) || 7.83,
         duration: e.duration_minutes || (e.duration_seconds ? Math.round(e.duration_seconds / 60) : 0),
         description: e.description || "No description",

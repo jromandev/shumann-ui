@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface TabNavigationProps {
   tabs: { id: string; label: string; icon: ReactNode }[];

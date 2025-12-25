@@ -13,6 +13,7 @@ export interface ResonanceData {
 export interface NotableEvent {
   id: string;
   date: Date;
+  intensity: number;
   peakAmplitude: number;
   peakFrequency: number;
   duration: number; // in minutes

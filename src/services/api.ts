@@ -4,6 +4,9 @@ import {
   generateNotableEvents,
   generateDailySummaries,
 } from "../utils/dataGenerator";
+import { CapacitorHttp } from '@capacitor/core';
+import type { HttpResponse } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === "true";
@@ -14,10 +17,27 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+// Helper function to make HTTP requests that work both on web and native
+async function apiGet(url: string): Promise<any> {
+  if (Capacitor.isNativePlatform()) {
+    // Use native HTTP on mobile to bypass CORS
+    const response: HttpResponse = await CapacitorHttp.get({
+      url: url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } else {
+    // Use standard fetch on web
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  }
+}
+
 export async function fetchSites() {
-  const response = await fetch(`${API_BASE_URL}/sites`);
-  if (!response.ok) throw new Error("Failed to fetch sites");
-  const json: ApiResponse<any[]> = await response.json();
+  const json: ApiResponse<any[]> = await apiGet(`${API_BASE_URL}/sites`);
   return json.data || [];
 }
 
@@ -42,11 +62,7 @@ export async function fetchCurrentData(siteId: string = "GCI001") {
     };
   }
   
-  const response = await fetch(
-    `${API_BASE_URL}/schumann/current?site=${siteId}`
-  );
-  if (!response.ok) throw new Error("Failed to fetch current data");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/schumann/current?site=${siteId}`);
 }
 
 export async function fetchPowerData(
@@ -59,7 +75,6 @@ export async function fetchPowerData(
     const now = new Date();
     const start = startDate || new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const end = endDate || now;
-    const hoursBack = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60));
     const historicalData = generateHistoricalData(start, end, interval === "day" ? 1440 : 60);
     
     // Return in API format
@@ -83,9 +98,7 @@ export async function fetchPowerData(
   if (startDate) params.append("startDate", startDate.toISOString());
   if (endDate) params.append("endDate", endDate.toISOString());
 
-  const response = await fetch(`${API_BASE_URL}/schumann/power?${params}`);
-  if (!response.ok) throw new Error("Failed to fetch power data");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/schumann/power?${params}`);
 }
 
 export async function fetchFrequencyData(
@@ -104,9 +117,7 @@ export async function fetchFrequencyData(
     params.append("frequencies", frequencies.join(","));
   }
 
-  const response = await fetch(`${API_BASE_URL}/schumann/frequency?${params}`);
-  if (!response.ok) throw new Error("Failed to fetch frequency data");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/schumann/frequency?${params}`);
 }
 
 export async function fetchEvents(
@@ -144,9 +155,7 @@ export async function fetchEvents(
 
   if (category && category !== "all") params.append("category", category);
 
-  const response = await fetch(`${API_BASE_URL}/schumann/events?${params}`);
-  if (!response.ok) throw new Error("Failed to fetch events");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/schumann/events?${params}`);
 }
 
 export async function fetchEventsBySite(
@@ -159,17 +168,11 @@ export async function fetchEventsBySite(
   if (startDate) params.append("startDate", startDate.toISOString());
   if (endDate) params.append("endDate", endDate.toISOString());
 
-  const response = await fetch(
-    `${API_BASE_URL}/schumann/events/${siteId}?${params}`
-  );
-  if (!response.ok) throw new Error("Failed to fetch site events");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/schumann/events/${siteId}?${params}`);
 }
 
 export async function checkHealth() {
-  const response = await fetch(`${API_BASE_URL}/health`);
-  if (!response.ok) throw new Error("API health check failed");
-  return response.json();
+  return await apiGet(`${API_BASE_URL}/health`);
 }
 
 export async function fetchDailySummaries(

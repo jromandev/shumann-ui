@@ -1,7 +1,10 @@
 import { motion } from "framer-motion";
 import type { NotableEvent } from "../types";
 import { format } from "date-fns";
-import { Zap, Sun, Activity, Cloud, Radio } from "lucide-react";
+import { Zap, Sun, Activity, Cloud, Radio, Share2 } from "lucide-react";
+import { Share } from "@capacitor/share";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import { Capacitor } from "@capacitor/core";
 
 interface EventCardProps {
   event: NotableEvent;
@@ -33,6 +36,32 @@ export function EventCard({ event }: EventCardProps) {
   const Icon = categoryIcons[event.category] || Activity; // fallback icon
   const color = categoryColors[event.category] || "#00D9FF"; // fallback color
 
+  const handleShare = async () => {
+    // Haptic feedback on native
+    if (Capacitor.isNativePlatform()) {
+      await Haptics.impact({ style: ImpactStyle.Light });
+    }
+
+    const shareText = `${event.category.replace("-", " ").toUpperCase()}\n${event.description}\nPeak: ${(typeof event.peakAmplitude === 'number' ? event.peakAmplitude : parseFloat(event.peakAmplitude) || 0).toFixed(2)}\n${format(event.date, "MMM dd, yyyy HH:mm")}`;
+    
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: 'Schumann Resonance Event',
+          text: shareText,
+          dialogTitle: 'Share Event',
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: 'Schumann Resonance Event',
+          text: shareText,
+        });
+      }
+    } catch (error) {
+      console.log('Error sharing:', error);
+    }
+  };
+
   return (
     <motion.div
       className="event-card"
@@ -56,6 +85,14 @@ export function EventCard({ event }: EventCardProps) {
             {format(event.date, "MMM dd, yyyy HH:mm")}
           </span>
         </div>
+        <button 
+          className="share-button" 
+          onClick={handleShare}
+          aria-label="Share event"
+          style={{ color }}
+        >
+          <Share2 size={20} />
+        </button>
       </div>
 
       <p className="event-description">{event.description}</p>

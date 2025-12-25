@@ -18,10 +18,12 @@ export function WaveformVisualizer({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
   const phaseRef = useRef(0);
+  const lastFrameTimeRef = useRef(0);
   const [dimensions, setDimensions] = useState({
     width: width || 300,
     height: height || 120,
   });
+  const [isVisible, setIsVisible] = useState(true);
 
   // Responsive canvas sizing
   useEffect(() => {
@@ -41,14 +43,39 @@ export function WaveformVisualizer({
     return () => window.removeEventListener("resize", updateSize);
   }, [width, height]);
 
+  // Visibility detection for performance optimization
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isVisible) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const draw = () => {
+    const targetFPS = 30; // Throttle to 30 FPS for better mobile performance
+    const frameInterval = 1000 / targetFPS;
+
+    const draw = (currentTime: number) => {
+      // FPS throttling
+      if (currentTime - lastFrameTimeRef.current < frameInterval) {
+        animationRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
+      lastFrameTimeRef.current = currentTime;
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
       // Create gradient
@@ -92,14 +119,14 @@ export function WaveformVisualizer({
       animationRef.current = requestAnimationFrame(draw);
     };
 
-    draw();
+    animationRef.current = requestAnimationFrame(draw);
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [frequency, amplitude, dimensions]);
+  }, [frequency, amplitude, dimensions, isVisible]);
 
   return (
     <motion.div
